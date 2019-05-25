@@ -21,8 +21,7 @@ BUILD_DIR = SOURCE_DIR + "/build"
 INSTALL_DIR = SOURCE_DIR + "/install"
 
 CONFIG_FLAGS = [
-    "--disable-cxx", "--disable-shared",
-    "--disable-prof", "--without-export",
+    "--disable-cxx", "--disable-static", "--disable-prof",
     "--with-jemalloc-prefix=%s" % (JEMALLOC_PREFIX),
     "--prefix=%s" % (INSTALL_DIR),
     "--libdir=%s" % (INSTALL_DIR),
@@ -93,4 +92,4 @@ else:
     # os.environ["AR"] = "gcc-ar"
 shell_exec("../configure " + " ".join(CONFIG_FLAGS))
 do_call("%s -j %d" % (MAKE_COMMAND, cpu_count()))
-do_call("%s %s %s" % (MAKE_COMMAND, "install_include", "install_lib_static"))
+do_call("%s %s %s" % (MAKE_COMMAND, "install_include", "install_lib"))
