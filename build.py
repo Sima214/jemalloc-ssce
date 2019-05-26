@@ -16,9 +16,9 @@ CLANG_LTO_FLAGS = ["-flto=thin"]
 
 SOURCE_DIR = os.path.realpath(os.path.dirname(os.path.realpath(__file__)))
 
-BUILD_DIR = SOURCE_DIR + "/build"
+BUILD_DIR = os.path.join(SOURCE_DIR, "build")
 
-INSTALL_DIR = SOURCE_DIR + "/install"
+INSTALL_DIR = os.path.join(SOURCE_DIR, "install")
 
 CONFIG_FLAGS = [
     "--disable-cxx", "--disable-static", "--disable-prof",
@@ -75,11 +75,7 @@ def shell_exec(cmd):
     do_call("bash -c \"%s\"" % (cmd))
 
 
-shell_exec("autoconf")
-if not os.path.isdir(BUILD_DIR):
-    os.mkdir(BUILD_DIR)
-os.chdir(BUILD_DIR)
-if is_clang():
+if os.name != 'nt' and is_clang():
     os.environ["CFLAGS"] = os.environ.get("CFLAGS", "") + " ".join(CLANG_LTO_FLAGS)
     os.environ["LDFLAGS"] = os.environ.get("LDFLAGS", "") + " ".join(CLANG_LTO_FLAGS)
     os.environ["CXXFLAGS"] = os.environ.get("CXXFLAGS", "") + " ".join(CLANG_LTO_FLAGS)
@@ -90,6 +86,16 @@ else:
     os.environ["LDFLAGS"] = os.environ.get("LDFLAGS", "") + " ".join(GCC_LTO_FLAGS)
     os.environ["CXXFLAGS"] = os.environ.get("CXXFLAGS", "") + " ".join(GCC_LTO_FLAGS)
     # os.environ["AR"] = "gcc-ar"
-shell_exec("../configure " + " ".join(CONFIG_FLAGS))
+
+old_path = os.environ["PATH"]
+if os.name == 'nt':
+    os.environ["PATH"] = os.environ["MSYS_PATH"] + ";" + os.environ["PATH"]
+shell_exec("autoconf")
+if not os.path.isdir(BUILD_DIR):
+    os.mkdir(BUILD_DIR)
+os.chdir(BUILD_DIR)
+shell_exec("../configure " + " ".join(CONFIG_FLAGS).replace('\\', '/'))
+if os.name == 'nt':
+    os.environ["PATH"] = old_path
 do_call("%s -j %d" % (MAKE_COMMAND, cpu_count()))
 do_call("%s %s %s" % (MAKE_COMMAND, "install_include", "install_lib"))
