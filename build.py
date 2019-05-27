@@ -3,12 +3,17 @@
 from multiprocessing import cpu_count
 from shlex import split as cmdsplit
 import subprocess
+import shutil
 import sys
 import os
 import re
 
 
 JEMALLOC_PREFIX = "je_"
+
+EXTRA_FLAGS = [
+    "-fvisibility=hidden", "-fexec-charset=UTF-8"
+]
 
 GCC_LTO_FLAGS = ["-flto", "-fno-fat-lto-objects"]
 
@@ -76,16 +81,29 @@ def shell_exec(cmd):
 
 
 if os.name != 'nt' and is_clang():
-    os.environ["CFLAGS"] = os.environ.get("CFLAGS", "") + " ".join(CLANG_LTO_FLAGS)
-    os.environ["LDFLAGS"] = os.environ.get("LDFLAGS", "") + " ".join(CLANG_LTO_FLAGS)
-    os.environ["CXXFLAGS"] = os.environ.get("CXXFLAGS", "") + " ".join(CLANG_LTO_FLAGS)
-    # os.environ["AR"] = "llvm-ar"
-    # os.environ["NM"] = "llvm-nm"
+    os.environ["CFLAGS"] = "%s %s %s" % (
+        os.environ.get("CFLAGS", ""),
+        " ".join(EXTRA_FLAGS),
+        " ".join(CLANG_LTO_FLAGS))
+    os.environ["CXXFLAGS"] = "%s %s %s" % (
+        os.environ.get("CXXFLAGS", ""),
+        " ".join(EXTRA_FLAGS),
+        " ".join(CLANG_LTO_FLAGS))
+    os.environ["LDFLAGS"] = "%s %s" % (
+        os.environ.get("LDFLAGS", ""),
+        " ".join(CLANG_LTO_FLAGS))
 else:
-    os.environ["CFLAGS"] = os.environ.get("CFLAGS", "") + " ".join(GCC_LTO_FLAGS)
-    os.environ["LDFLAGS"] = os.environ.get("LDFLAGS", "") + " ".join(GCC_LTO_FLAGS)
-    os.environ["CXXFLAGS"] = os.environ.get("CXXFLAGS", "") + " ".join(GCC_LTO_FLAGS)
-    # os.environ["AR"] = "gcc-ar"
+    os.environ["CFLAGS"] = "%s %s %s" % (
+        os.environ.get("CFLAGS", ""),
+        " ".join(EXTRA_FLAGS),
+        " ".join(GCC_LTO_FLAGS))
+    os.environ["CXXFLAGS"] = "%s %s %s" % (
+        os.environ.get("CXXFLAGS", ""),
+        " ".join(EXTRA_FLAGS),
+        " ".join(GCC_LTO_FLAGS))
+    os.environ["LDFLAGS"] = "%s %s" % (
+        os.environ.get("LDFLAGS", ""),
+        " ".join(GCC_LTO_FLAGS))
 
 old_path = os.environ["PATH"]
 if os.name == 'nt':
@@ -99,3 +117,4 @@ if os.name == 'nt':
     os.environ["PATH"] = old_path
 do_call("%s -j %d" % (MAKE_COMMAND, cpu_count()))
 do_call("%s %s %s" % (MAKE_COMMAND, "install_include", "install_lib"))
+shutil.move(os.path.join(INSTALL_DIR, os.path.join("jemalloc", "jemalloc.h")), os.path.join(INSTALL_DIR, "jemalloc.h"))
