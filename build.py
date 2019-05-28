@@ -2,7 +2,9 @@
 
 from multiprocessing import cpu_count
 from shlex import split as cmdsplit
+import urllib.request
 import subprocess
+import argparse
 import shutil
 import sys
 import os
@@ -56,7 +58,8 @@ def get_compiler_info():
         version_info = subprocess.check_output(
             args, env=os.environ, stderr=subprocess.STDOUT)
         version_info = version_info.decode("utf-8")
-        version_info_match = re.search(r"^(\w+) version ([\.\d]+)", version_info, re.MULTILINE)
+        version_info_match = re.search(
+            r"^(\w+) version ([\.\d]+)", version_info, re.MULTILINE)
         if version_info_match is None:
             print(version_info, "Could not parse compiler information!",
                   sep='\n', flush=True)
@@ -78,6 +81,24 @@ def is_clang():
 
 def shell_exec(cmd):
     do_call("bash -c \"%s\"" % (cmd))
+
+
+parser = argparse.ArgumentParser(
+    description="SSCE jemalloc module auto builder")
+parser.add_argument('--prebuilt', dest='prebuilt', action='store_true')
+args = parser.parse_args()
+
+
+if args.prebuilt:
+    url = "https://sima214.me/ssce/binaries/%s/%s/%s" % (
+        "x86_64", "windows", "jemalloc")
+    if not os.path.exists(INSTALL_DIR):
+        os.makedirs(INSTALL_DIR)
+    dest_path = os.path.join(INSTALL_DIR, "jemalloc.7z")
+    with urllib.request.urlopen(url) as r, open(dest_path, 'wb') as f:
+        shutil.copyfileobj(r, f)
+    do_call("7z e -y -o%s %s" % (INSTALL_DIR.replace('\\', '/'), dest_path.replace('\\', '/')))
+    sys.exit(0)
 
 
 if os.name != 'nt' and is_clang():
@@ -117,4 +138,5 @@ if os.name == 'nt':
     os.environ["PATH"] = old_path
 do_call("%s -j %d" % (MAKE_COMMAND, cpu_count()))
 do_call("%s %s %s" % (MAKE_COMMAND, "install_include", "install_lib"))
-shutil.move(os.path.join(INSTALL_DIR, os.path.join("jemalloc", "jemalloc.h")), os.path.join(INSTALL_DIR, "jemalloc.h"))
+shutil.move(os.path.join(INSTALL_DIR, os.path.join(
+    "jemalloc", "jemalloc.h")), os.path.join(INSTALL_DIR, "jemalloc.h"))
