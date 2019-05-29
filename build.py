@@ -27,6 +27,13 @@ BUILD_DIR = os.path.join(SOURCE_DIR, "build")
 
 INSTALL_DIR = os.path.join(SOURCE_DIR, "install")
 
+parser = argparse.ArgumentParser(description="ssce-jemalloc auto builder")
+parser.add_argument('--prebuilt', dest='prebuilt', action='store_true')
+parser.add_argument('--install-path', dest='install_dir', nargs=1)
+args = parser.parse_args()
+if args.install_dir is not None:
+    INSTALL_DIR = args.install_dir[0]
+
 CONFIG_FLAGS = [
     "--disable-cxx", "--disable-static", "--disable-prof",
     "--with-jemalloc-prefix=%s" % (JEMALLOC_PREFIX),
@@ -83,12 +90,6 @@ def shell_exec(cmd):
     do_call("bash -c \"%s\"" % (cmd))
 
 
-parser = argparse.ArgumentParser(
-    description="SSCE jemalloc module auto builder")
-parser.add_argument('--prebuilt', dest='prebuilt', action='store_true')
-args = parser.parse_args()
-
-
 if args.prebuilt:
     url = "https://sima214.me/ssce/binaries/%s/%s/%s" % (
         "x86_64", "windows", "jemalloc")
@@ -97,7 +98,10 @@ if args.prebuilt:
     dest_path = os.path.join(INSTALL_DIR, "jemalloc.7z")
     with urllib.request.urlopen(url) as r, open(dest_path, 'wb') as f:
         shutil.copyfileobj(r, f)
-    do_call("7z e -y -o%s %s" % (INSTALL_DIR.replace('\\', '/'), dest_path.replace('\\', '/')))
+    do_call("7z e -y -o%s %s" % (
+        INSTALL_DIR.replace('\\', '/'),
+        dest_path.replace('\\', '/')
+    ))
     sys.exit(0)
 
 
