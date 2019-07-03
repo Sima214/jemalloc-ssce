@@ -602,19 +602,6 @@ endforeach(line)
 
 endfunction(PrivateNamespace)
 
-####################################################################
-# Redefines a private symbol via a macro
-# Based on private_namespace.sh
-function(PrivateUnnamespace private_sym_list_file output_file)
-
-file(REMOVE ${output_file})
-file(STRINGS ${private_sym_list_file} INPUT_STRINGS)
-foreach(line ${INPUT_STRINGS})
-  file(APPEND ${output_file} "#undef ${line}\n")
-endforeach(line)
-
-endfunction(PrivateUnnamespace)
-
 
 ############################################################################
 # A function that configures a file_path and outputs
@@ -629,8 +616,8 @@ if(EXISTS ${file_path})
   else()
     # Convert autoconf .in into a cmake .in
     file(READ ${file_path} file_content)
-    string(REGEX REPLACE "#undef[ \t]*([^ \t\n\r]*)\n" "#cmakedefine \\1 @\\1@\n" file_cmake_content ${file_content})
-    file(WRITE ${file_path}.cmake ${file_cmake_content})
+    string(REGEX REPLACE "#undef[ \t]*([^ \t\n\r]*)\n" "#cmakedefine \\1 @\\1@\n" file_cmake_content "${file_content}")
+    file(WRITE ${file_path}.cmake "${file_cmake_content}")
 
     configure_file(${file_path}.cmake ${output_path} @ONLY)
     file(REMOVE ${file_path}.cmake)

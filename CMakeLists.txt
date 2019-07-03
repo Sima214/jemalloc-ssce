@@ -1,8 +1,20 @@
 cmake_minimum_required (VERSION 3.4 FATAL_ERROR)
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
+
+# Release build as default.
+if( NOT CMAKE_BUILD_TYPE )
+	message( STATUS "Setting build type to 'Release' as none was specified." )
+	set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE )
+	## Set the possible values of build type for cmake-gui
+	SET_PROPERTY( CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo" )
+endif()
+
+# Better debug defaults.
+set( CMAKE_C_FLAGS_DEBUG "-g3 -O1" CACHE STRING "Flags used by the C compiler during debug builds." FORCE )
+set( CMAKE_CXX_FLAGS_DEBUG "-g3 -O1" CACHE STRING "Flags used by the CXX compiler during debug builds." FORCE )
 
 # Set policy based on the CMake version
 cmake_policy(VERSION 3.4.3)
-
 if(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW)
 endif()
@@ -38,18 +50,18 @@ option(force_lazy_lock "Forcing lazy-lock to avoid allocator/threading bootstrap
 set (PACKAGE_NAME "jemalloc")
 project (${PACKAGE_NAME} C)
 
-include(CheckTypeSize)
-include(CheckIncludeFiles)
-include(TestBigEndian)
-include(CheckCSourceCompiles)
-include(CheckCCompilerFlag)
-include(CheckFunctionExists)
+include( CheckTypeSize )
+include( CheckIncludeFiles )
+include( TestBigEndian )
+include( CheckCSourceCompiles )
+include( CheckCCompilerFlag )
+include( CheckFunctionExists )
+include( CheckSymbolExists )
 
-include(${CMAKE_SOURCE_DIR}/Utilities.cmake)
+include( TargetArch.cmake )
+include( Utilities.cmake )
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/build-aux")
-
-# TODO: Check the need for CONFIG
 
 # Set library revision
 set(rev 2)
@@ -70,28 +82,12 @@ set(PREFIX $install_prefix)
 
 message(STATUS "CMAKE_C_COMPILER_ID: ${CMAKE_C_COMPILER_ID}")
 
-if(NOT CFLAGS)
-  if(CMAKE_COMPILER_IS_GNUCC)
-    JeCflagsAppend("-std=gnu11" "GFLAGS" "je_cv_cflags_appended")
-    if(je_cv_cflags_appended)
-      set (JEMALLOC_HAS_RESTRICT 1)
-    else()
-      JeCflagsAppend("-std=gnu99" "GFLAGS" "je_cv_cflags_appended")
-      if(je_cv_cflags_appended)
-        set (JEMALLOC_HAS_RESTRICT 1)
-      endif()
-    endif()
-    
-    # The errors on these are not checked
-    set (GFLAGS "${GFLAGS} -Wall -Werror=declaration-after-statement "
-                "-Wshorten-64-to-32 -Wsign-compare -pipe -g3")
-  endif()
-  
-  if(MSVC)
-    # Restrict is #defined to _restrict
-    set (JEMALLOC_HAS_RESTRICT 1)
-  endif()
-endif()
+set( CMAKE_C_STANDARD 11 )
+set( CMAKE_CXX_STANDARD 11 )
+set( CFLAGS "${CFLAGS} -Wall -Wextra" )
+set( CFLAGS "${CFLAGS} -Werror=declaration-after-statement" "-Wshorten-64-to-32 -Wsign-compare -g3" )
+set( CXXFLAGS "${CXXFLAGS} -Wall -Wextra" )
+set( JEMALLOC_HAS_RESTRICT 1 )
 
 ##################################################################
 # Versioning from GIT
@@ -109,6 +105,9 @@ GetAndParseVersion()
 # We do not support exec_prefix until we find it is necessary
 
 CHECK_INCLUDE_FILES (alloca.h JEMALLOC_HAS_ALLOCA_H)
+
+# Determine target architecture.
+target_architecture( arch )
 
 # TODO Determine abi
 set(abi "elf")
@@ -176,19 +175,42 @@ endif()
 # CPU-specific settings.
 message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 
-if(CMAKE_SYSTEM_NAME MATCHES "powerpc")
-  set(HAVE_ALTIVEC 1)
+set( HAVE_CPU_SPINWAIT 0 )
+if( $arch MATCHES "x86_64" OR $arch MATCHES "i386" )
+  set( HAVE_CPU_SPINWAIT 1 )
+  set( CPU_SPINWAIT "__asm__ volatile(\"pause\")" )
 endif()
 
+set( LG_VADDR 32 )
+if( $arch MATCHES "x86_64" )
+  set( LG_VADDR 32 )
+endif()
 
-# If defined, use munmap() to unmap freed chunks, rather than storing them for
-# later reuse.  This is disabled by default on Linux because common sequences
-# of mmap()/munmap() calls will cause virtual memory map holes.
-# But it is enabled by default on Windows
-set(JEMALLOC_MUNMAP 1)
+set( JEMALLOC_C11_ATOMICS 0 )
+check_symbol_exists( "atomic_fetch_add" "stdatomic.h" jemalloc_c11_atomics_ok )
+if( ${jemalloc_c11_atomics_ok} )
+  set( JEMALLOC_C11_ATOMICS 1 )
+endif()
 
-if(disable-munmap)
-  set(JEMALLOC_MUNMAP 0)
+set( JEMALLOC_GCC_ATOMIC_ATOMICS 0 )
+set( JEMALLOC_GCC_U8_ATOMIC_ATOMICS 0 )
+set( JEMALLOC_GCC_SYNC_ATOMICS 0 )
+set( JEMALLOC_GCC_U8_SYNC_ATOMICS 0 )
+check_symbol_exists( "__atomic_fetch_add" "stdatomic.h" jemalloc_gcc_atomic_atomics_ok )
+if( ${jemalloc_gcc_atomic_atomics_ok} )
+  set( JEMALLOC_GCC_ATOMIC_ATOMICS 1 )
+endif()
+
+set( JEMALLOC_HAVE_BUILTIN_CLZ 1 )
+
+set( JEMALLOC_OS_UNFAIR_LOCK )
+check_symbol_exists( "os_unfair_lock_lock" "os/lock.h" jemalloc_os_unfair_lock_ok )
+if( ${jemalloc_os_unfair_lock_ok} )
+  set( JEMALLOC_OS_UNFAIR_LOCK 1 )
+endif()
+
+if(CMAKE_SYSTEM_NAME MATCHES "powerpc")
+  set(HAVE_ALTIVEC 1)
 endif()
 
 # If defined, adjacent virtual memory mappings with identical attributes
@@ -196,11 +218,17 @@ endif()
 # This is the normal order of things for mmap()/munmap(), but on Windows
 # VirtualAlloc()/VirtualFree() operations must be precisely matched, i.e.
 # mappings do *not* coalesce/fragment.
-set(JEMALLOC_MAPS_COALESCE 0)
+if( UNIX )
+  set( JEMALLOC_MAPS_COALESCE 1 )
+else()
+  set(JEMALLOC_MAPS_COALESCE 0)
+endif()
+if( UNIX AND NOT APPLE AND $arch MATCHES "x86_64")
+  set( JEMALLOC_RETAIN 1 )
+endif()
 
 ###################################################
 # Undefined
-# #undef JEMALLOC_HAVE_ATTR
 set(JEMALLOC_HAVE_ATTR 0)
 # Below is everything under HAVE_ATTR
 # #undef JEMALLOC_HAVE_ATTR_ALLOC_SIZE
@@ -220,7 +248,7 @@ if(with-mangling)
 endif()
 
 # Set the default API prefix for public
-set(JEMALLOC_PREFIX je_)
+set(JEMALLOC_PREFIX "je_")
 # Protos are always je_ but are renamed by #defines according to prefix
 set(je_ "je_")
 
@@ -245,10 +273,10 @@ endif()
 
 # Prefix to prepend to all library-private APIs
 # default is on
-set(JEMALLOC_PRIVATE_NAMESPACE je_)
+set(JEMALLOC_PRIVATE_NAMESPACE "je_")
 if(with-private-namespace)
   # TODO: private namespace generation not supported.
-  set(JEMALLOC_PRIVATE_NAMESPACE "${with_private_namespace}je_")
+  set(JEMALLOC_PRIVATE_NAMESPACE "${with-private-namespace}je_")
 endif()
 
 set(private_namespace ${JEMALLOC_PRIVATE_NAMESPACE})
@@ -307,7 +335,7 @@ if(disable-fill)
   set (JEMALLOC_FILL 0)
 endif()
 
-# Windows does not have it
+# Don't need it.
 set(JEMALLOC_UTRACE 0)
 
 # Support xmalloc option
@@ -364,6 +392,8 @@ if(with-lg-page-sizes)
   string(REPLACE "," ";" LG_PAGE_SIZES  ${with-lg-page-sizes})
 endif()
 
+# TODO: hugepages.
+
 # Base 2 log of size classes per doubling
 set (LG_SIZE_CLASS_GROUP 2)
 if(with-lg-size-class-group)
@@ -382,19 +412,79 @@ if(NOT WIN32)
     }
     " HAVE_SYSCALL)
 
+  set(JEMALLOC_USE_SYSCALL 0)
   if(HAVE_SYSCALL)
-    set(JEMALLOC_HAVE_SYSCALL 1)
+    set(JEMALLOC_USE_SYSCALL 1)
   endif()
 
   CHECK_FUNCTION_EXISTS(secure_getenv HAVE_SECURE_GETENV)
   if(HAVE_SECURE_GETENV)
     set(JEMALLOC_HAVE_SECURE_GETENV 1)
   endif()
-  
 endif()
 
-set(JEMALLOC_HAVE_ISSETUGID 0)
-set(JEMALLOC_MALLOC_THREAD_CLEANUP 0)
+CHECK_FUNCTION_EXISTS( issetugid HAVE_ISSETUGID )
+set( JEMALLOC_HAVE_ISSETUGID 0)
+if( HAVE_ISSETUGID )
+  set( JEMALLOC_HAVE_ISSETUGID 1 )
+endif()
+
+set( JEMALLOC_HAVE_PTHREAD_ATFORK 0)
+check_symbol_exists( "pthread_atfork" "pthread.h" have_pthread_atfork )
+if( have_pthread_atfork )
+  set( JEMALLOC_HAVE_PTHREAD_ATFORK 1 )
+endif()
+
+set( JEMALLOC_HAVE_PTHREAD_SETNAME_NP 0)
+check_symbol_exists( "pthread_setname_np" "pthread.h" have_pthread_setname_np )
+if( have_pthread_setname_np )
+  set( JEMALLOC_HAVE_PTHREAD_SETNAME_NP 1 )
+endif()
+
+set( JEMALLOC_MUTEX_INIT_CB 0)
+check_symbol_exists( "_pthread_mutex_init_calloc_cb" "pthread.h" have_pthread_mutex_init_calloc_cb )
+if( have_pthread_mutex_init_calloc_cb )
+  set( JEMALLOC_MUTEX_INIT_CB 1 )
+endif()
+
+set( JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 0)
+check_symbol_exists( "CLOCK_MONOTONIC_COARSE" "time.h" have_clock_monotonic_coarse )
+if( have_clock_monotonic_coarse )
+  set( JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 1 )
+endif()
+
+set( JEMALLOC_HAVE_CLOCK_MONOTONIC 0)
+check_symbol_exists( "clock_gettime" "time.h" have_clock_gettime )
+if( have_clock_gettime )
+  set( JEMALLOC_HAVE_CLOCK_MONOTONIC 1 )
+endif()
+
+set( JEMALLOC_HAVE_MACH_ABSOLUTE_TIME 0)
+check_symbol_exists( "mach_absolute_time" "mach/mach_time.h" have_mach_absolute_time )
+if( have_mach_absolute_time )
+  set( JEMALLOC_HAVE_MACH_ABSOLUTE_TIME 1 )
+endif()
+
+set( JEMALLOC_MALLOC_THREAD_CLEANUP 0)
+check_symbol_exists( "_malloc_thread_cleanup" "mach/mach_time.h" have_malloc_thread_cleanup )
+if( have_malloc_thread_cleanup )
+  set( JEMALLOC_MALLOC_THREAD_CLEANUP 1 )
+endif()
+
+set( JEMALLOC_THREADED_INIT 0 )
+if( UNIX AND NOT APPLE )
+  set( JEMALLOC_THREADED_INIT 1 )
+endif()
+
+check_c_source_compiles("
+int main() {
+  static __thread int __attribute__((tls_model(\"initial-exec\"), unused)) foo;
+  foo = 0;
+}
+" have_tls_model)
+if(have_tls_model)
+  set( JEMALLOC_TLS_MODEL "__attribute__((tls_model(\"initial-exec\")))" )
+endif()
 
 set(JEMALLOC_MUTEX_INIT_CB 0)
 
@@ -434,27 +524,8 @@ endif()
 # So TLS is enabled for Windows
 set(JEMALLOC_TLS 0)
 
-# Relevant for FreeBSD only
-set(JEMALLOC_ATOMIC9 0)
-
-# Only for iOS
-set(JEMALLOC_OSATOMIC 0)
-set(JEMALLOC_OSSPIN 0)
-set(JEMALLOC_ZONE 0)
-
 # Only for GNU
-set(JE_FORCE_SYNC_COMPARE_AND_SWAP_4 0)
-set(JE_FORCE_SYNC_COMPARE_AND_SWAP_8 0)
-set(JEMALLOC_HAVE_BUILTIN_CLZ 0)
 set(JEMALLOC_HAVE_MADVISE 0)
-set(JEMALLOC_THREADED_INIT 0)
-
-set(JEMALLOC_TLS_MODEL 0)
-set(JEMALLOC_CODE_COVERAGE 0)
-set(JEMALLOC_PROF 0)
-set(JEMALLOC_PROF_LIBUNWIND 0)
-set(JEMALLOC_PROF_LIBGCC 0)
-set(JEMALLOC_PROF_GCC 0)
 
 ###########################################################################
 # Generate configured public headers for concatenation
@@ -527,8 +598,7 @@ PublicNamespace(${PUBLIC_SYM_FILE} ${PUBLIC_NAMESPACE_FILE})
 set(PUBLIC_UNNAMESPACE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/include/jemalloc/internal/public_unnamespace.h")
 PublicUnnamespace(${PUBLIC_SYM_FILE} ${PUBLIC_UNNAMESPACE_FILE})
 
-# set(PRIVATE_NAMESPACE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/include/jemalloc/internal/private_namespace.h")
-# TODO: PrivateNamespace(${PRIVATE_SYM_FILE} ${PRIVATE_NAMESPACE_FILE})
+# TODO: Support PrivateNamespace
 
 # Configure internal headers
 foreach(internal_in jemalloc_preamble.h jemalloc_internal_defs.h)
@@ -590,7 +660,13 @@ set(LIBJEMALLOCSO jemallocso${install_suffix})
 add_library(${LIBJEMALLOCSO} SHARED ${C_SRCS})
 target_include_directories(${LIBJEMALLOCSO} PRIVATE "${PROJECT_SOURCE_DIR}/include")
 
-# Need to export from DLL
+# Link shared library against pthreads.
+set( CMAKE_THREAD_PREFER_PTHREAD TRUE )
+set( THREADS_PREFER_PTHREAD_FLAG TRUE )
+find_package( Threads REQUIRED )
+target_link_libraries( ${LIBJEMALLOCSO} Threads::Threads )
+
+# Need to export from DLL.
 target_compile_definitions(${LIBJEMALLOCSO} PRIVATE DLLEXPORT)
 
 if(with-jemalloc-prefix)
