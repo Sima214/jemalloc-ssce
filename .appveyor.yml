@@ -1,42 +1,34 @@
-version: '{build}'
+# Windows ci build script.
+# Reference: https://github.com/travis-ci-tester/toolchain-table
 
 environment:
   matrix:
-  - MSYSTEM: MINGW64
-    CPU: x86_64
-    MSVC: amd64
-  - MSYSTEM: MINGW32
-    CPU: i686
-    MSVC: x86
-  - MSYSTEM: MINGW64
-    CPU: x86_64
-  - MSYSTEM: MINGW32
-    CPU: i686
-  - MSYSTEM: MINGW64
-    CPU: x86_64
-    MSVC: amd64
-    CONFIG_FLAGS: --enable-debug
-  - MSYSTEM: MINGW32
-    CPU: i686
-    MSVC: x86
-    CONFIG_FLAGS: --enable-debug
-  - MSYSTEM: MINGW64
-    CPU: x86_64
-    CONFIG_FLAGS: --enable-debug
-  - MSYSTEM: MINGW32
-    CPU: i686
-    CONFIG_FLAGS: --enable-debug
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+      GENERATOR: "MinGW Makefiles"
+
+branches:
+  except:
+    - linux
+    - macos
 
 install:
-  - set PATH=c:\msys64\%MSYSTEM%\bin;c:\msys64\usr\bin;%PATH%
-  - if defined MSVC call "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %MSVC%
-  - if defined MSVC pacman --noconfirm -Rsc mingw-w64-%CPU%-gcc gcc
-  - pacman --noconfirm -Suy mingw-w64-%CPU%-make
+  - cmd: git submodule update --init --recursive
+  # Remove shell provided by git, to avoid conflicts.
+  - cmd: set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  # Python 3.
+  - cmd: set PATH=C:\Python37-x64;C:\Python37-x64\Scripts;%PATH%
+  # Tune locations.
+  - cmd: set PATH=%cd%\_ci\cmake\bin;%PATH%
+  - cmd: set MSYS_PATH=C:\msys64\usr\bin
+  - cmd: set MINGW_ROOT=C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64
+  - cmd: set MINGW_PATH=%MINGW_ROOT%\bin
+  # Enable lto plugin for mingw.
+  - cmd: mkdir %MINGW_ROOT%\lib\bfd-plugins
+  - cmd: copy %MINGW_ROOT%\libexec\gcc\x86_64-w64-mingw32\8.1.0\liblto_plugin-0.dll %MINGW_ROOT%\lib\bfd-plugins\liblto_plugin-0.dll
 
 build_script:
-  - bash -c "autoconf"
-  - bash -c "./configure $CONFIG_FLAGS"
-  - mingw32-make
-  - file lib/jemalloc.dll
-  - mingw32-make tests
-  - mingw32-make -k check
+  - python .\windows.py --generator "%GENERATOR%"
+
+# Uncomment to be enable rdp.
+# on_finish:
+#   - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
