@@ -1,10 +1,11 @@
-cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.9.4 FATAL_ERROR)
 
 project(jemalloc C CXX)
 
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
+include( CheckIPOSupported )
 # Order of includes matters here. Modify at your own risk.
 include(${PROJECT_SOURCE_DIR}/build-aux/Utilities.cmake)
 include(${PROJECT_SOURCE_DIR}/build-aux/GetSystemSizes.cmake)
@@ -22,8 +23,8 @@ include_directories(${PROJECT_BINARY_DIR}/include/jemalloc)
 # User configuration options are maintained in an include for cleanliness:
 include(${PROJECT_SOURCE_DIR}/build-aux/UserCompileOptions.cmake)
 
-# Enable smallocx by default too
-set(JEMALLOC_EXPERIMENTAL_SMALLOCX_API 1)
+# Do not enable smallocx by default.
+set(JEMALLOC_EXPERIMENTAL_SMALLOCX_API 0)
 
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
@@ -57,11 +58,22 @@ setCompileFlag("-Wsign-compare")
 setCompileFlag("-Wundef")
 setCompileFlag("-Wno-format-zero-length")
 
-setCompileFlag("-pipe")
-setCompileFlag("-g3")
+setCompileFlag("-fvisibility=hidden")
+setCompileFlag("-fexec-charset=UTF-8")
+setCompileFlag("-fno-plt")
 
-setCompileFlag("-O3")
-setCompileFlag("-funroll-loops")
+# Enable lto if not debug build.
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    message("Debug build detected, extra optimization flags are not enabled.")
+else()
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+    if(${ipo_supported})
+        set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        message(STATUS "IPO/LTO is supported and enabled.")
+    else()
+        message(STATUS "IPO/LTO is not supported: <${ipo_error}>.")
+    endif()
 
 add_definitions(-D_GNU_SOURCE)
 
