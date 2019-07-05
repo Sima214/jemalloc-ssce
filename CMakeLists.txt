@@ -58,9 +58,10 @@ setCompileFlag("-Wsign-compare")
 setCompileFlag("-Wundef")
 setCompileFlag("-Wno-format-zero-length")
 
+setCompileFlag("-masm=intel")
+
 setCompileFlag("-fvisibility=hidden")
 setCompileFlag("-fexec-charset=UTF-8")
-setCompileFlag("-fno-plt")
 
 add_definitions(-D_GNU_SOURCE)
 
