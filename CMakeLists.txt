@@ -365,7 +365,7 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     # want to conflict with any other 'check' targets
     add_custom_target(${PROJECT_NAME}-check COMMAND ${CMAKE_CTEST_COMMAND})
 
-    add_subdirectory(test)
+    # add_subdirectory(test)
 endif()
 
 add_subdirectory(src)
