@@ -369,3 +369,7 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 endif()
 
 add_subdirectory(src)
+get_directory_property(submodule PARENT_DIRECTORY)
+if(submodule)
+    set(JEMALLOC_MODULE_TARGET ${JEMALLOC_MODULE_TARGET} PARENT_SCOPE)
+endif()
