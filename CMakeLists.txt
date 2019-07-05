@@ -62,19 +62,6 @@ setCompileFlag("-fvisibility=hidden")
 setCompileFlag("-fexec-charset=UTF-8")
 setCompileFlag("-fno-plt")
 
-# Enable lto if not debug build.
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    message("Debug build detected, extra optimization flags are not enabled.")
-else()
-    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-    if(${ipo_supported})
-        set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-        message(STATUS "IPO/LTO is supported and enabled.")
-    else()
-        message(STATUS "IPO/LTO is not supported: <${ipo_error}>.")
-    endif()
-
 add_definitions(-D_GNU_SOURCE)
 
 # If we can't be gnu11 for some reason, try gnu99 instead

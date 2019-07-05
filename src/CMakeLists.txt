@@ -59,7 +59,7 @@ if(NOT JEMALLOC_CXX_DISABLE)
     # C++14 support exists, so add C++ file and configure C++ options
     list(APPEND JEMALLOC_CMAKE_SOURCES
         jemalloc_cpp.cpp)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -g3 -O3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
 
 if(enable_valgrind)
@@ -243,6 +243,20 @@ endif()
 # (also so we don't compile twice for both -static and -shared)
 add_library(${PROJECT_NAME} OBJECT ${JEMALLOC_CMAKE_SOURCES})
 add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}-syms)
+
+# Enable lto if not debug build.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    message("Debug build detected, extra optimization flags are not enabled.")
+else()
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+    if(${ipo_supported})
+        set_property(TARGET ${PROJECT_NAME}-syms-internal PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        set_property(TARGET ${PROJECT_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        message(STATUS "IPO/LTO is supported and enabled.")
+    else()
+        message(STATUS "IPO/LTO is not supported: <${ipo_error}>.")
+    endif()
+endif()
 
 if(JEMALLOC_BUILD_SHARED)
     # Now add shared library. Needed for tests and benchmarks or preloading.
