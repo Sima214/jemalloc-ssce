@@ -94,7 +94,7 @@ foreach(sym ${JEMALLOC_CMAKE_SOURCES})
     # - only rebuild symbols for changed files (makes CMake output cluttered)
     # - rebuild all symbols when any source file changes (nicer CMake output
     #   for end users, but shows each symbol extract line on every source change)
-    set(EXTRACT_PER_FILE ON)
+    set(EXTRACT_PER_FILE OFF)
 
     # There are two ways of generating the symbol files and the
     # above feature toggle EXTRACT_PER_FILE controls which we're attempting:
