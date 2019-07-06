@@ -153,7 +153,8 @@ if(NOT WIN32)
         syscall(SYS_write, 2, \"hello\", 5);
         return 0;
     }" JEMALLOC_USE_SYSCALL)
-    set(CMAKE_REQUIRED_FLAGS)
+else()
+    unset(JEMALLOC_USE_SYSCALL)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")

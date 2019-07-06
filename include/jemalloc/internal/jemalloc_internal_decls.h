@@ -15,6 +15,9 @@
 #      define LG_VADDR 32
 #    endif
 #  endif
+#  ifdef JEMALLOC_HAVE_PTHREAD
+#    include <pthread.h>
+#  endif
 #else
 #  include <sys/param.h>
 #  include <sys/mman.h>

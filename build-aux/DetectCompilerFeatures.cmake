@@ -502,7 +502,7 @@ UtilCheckTypeSizeValid("long long" LG_SIZEOF_LONG_LONG 8 4)
 UtilCheckTypeSizeValid("intmax_t" LG_SIZEOF_INTMAX_T 16 8 4)
 
 # Enable background threads if possible
-if(JEMALLOC_HAVE_PTHREAD AND NOT JEMALLOC_OS_UNFAIR_LOCK)
+if(JEMALLOC_HAVE_PTHREAD AND NOT JEMALLOC_OS_UNFAIR_LOCK AND NOT WIN32)
     set(JEMALLOC_BACKGROUND_THREAD 1)
 endif()
 
