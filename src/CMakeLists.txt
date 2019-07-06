@@ -87,8 +87,13 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src/syms/")
 # Generate per-file output: nm -a $obj | awk -f private_symbols.awk > $obj.sym
 foreach(sym ${JEMALLOC_CMAKE_SOURCES})
     get_filename_component(filename ${sym} NAME)
-    set(obj ${filename}.o)
-    set(objectDir "${PROJECT_BINARY_DIR}/src/CMakeFiles/${dir}")
+    if(WIN32)
+        set(obj ${filename}.c.obj)
+        set(objectDir "${PROJECT_BINARY_DIR}/src/CMakeFiles/${dir}")
+    else()
+        set(obj ${filename}.o)
+        set(objectDir "${PROJECT_BINARY_DIR}/src/CMakeFiles/${dir}")
+    endif()
 
     # Control symbol rebulding either when:
     # - only rebuild symbols for changed files (makes CMake output cluttered)
@@ -133,11 +138,12 @@ foreach(sym ${JEMALLOC_CMAKE_SOURCES})
             OUTPUT
             "${PROJECT_BINARY_DIR}/src/syms/${obj}.${symExt}"
             COMMAND
-            ${CMAKE_NM} -a "${objectDir}/${obj}" |
-            ${JEMALLOC_AWK_EXEC} -f
-            "${PROJECT_BINARY_DIR}/include/jemalloc/internal/${awk}"
+            ${CMAKE_NM} -a 
+            \""${objectDir}/${obj}"\" |
+            \"${JEMALLOC_AWK_EXEC}\" -f
+            \""${PROJECT_BINARY_DIR}/include/jemalloc/internal/${awk}"\"
             >
-            "${PROJECT_BINARY_DIR}/src/syms/${obj}.${symExt}"
+            \""${PROJECT_BINARY_DIR}/src/syms/${obj}.${symExt}"\"
             DEPENDS
             "${objectDir}/${obj}"
             COMMENT
@@ -165,11 +171,12 @@ foreach(sym ${JEMALLOC_CMAKE_SOURCES})
             BYPRODUCTS
             "${PROJECT_BINARY_DIR}/src/syms/${obj}.${symExt}"
             COMMAND
-            ${CMAKE_NM} -a "${objectDir}/${obj}" |
-            ${JEMALLOC_AWK_EXEC} -f
-            "${PROJECT_BINARY_DIR}/include/jemalloc/internal/${awk}"
+            ${CMAKE_NM} -a
+            \""${objectDir}/${obj}"\" |
+            \"${JEMALLOC_AWK_EXEC}\" -f
+            \""${PROJECT_BINARY_DIR}/include/jemalloc/internal/${awk}"\"
             >
-            "${PROJECT_BINARY_DIR}/src/syms/${obj}.${symExt}"
+            \""${PROJECT_BINARY_DIR}/src/syms/${obj}.${symExt}"\"
             COMMENT
             "Extracting symbols from ${obj} for ${target}"
         )
