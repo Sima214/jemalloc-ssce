@@ -68,6 +68,8 @@ elseif(platform MATCHES "ibm-aix")
     set(abi "xcoff")
 elseif(platform MATCHES "mingw" OR platform MATCHES "cygwin" OR platform MATCHES "windows")
     set(JEMALLOC_MAPS_COALESCE 0)
+    # TODO: windows does not have sbrk!
+    set(SBRK_DEPRECATED YES)
     set(abi "pecoff")
     list(APPEND wrap_syms "tls_callback")
 else()
