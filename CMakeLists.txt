@@ -244,12 +244,14 @@ foreach(sym ${wrap_syms})
     list(APPEND PREFIXED_JET "${sym}")
 endforeach()
 
+find_package( PythonInterp 3 REQUIRED )
 macro(createSymbolsAwk end syms)
 add_custom_command(
     OUTPUT
     "${PROJECT_BINARY_DIR}/include/jemalloc/internal/private_symbols${end}.awk"
     COMMAND
-    "${PROJECT_SOURCE_DIR}/include/jemalloc/internal/private_symbols.sh"
+    ${PYTHON_EXECUTABLE}
+    "${PROJECT_SOURCE_DIR}/include/jemalloc/internal/private_symbols.py"
     "${NM_PREFIX}"
     ${syms}
     >
